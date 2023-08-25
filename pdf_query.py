@@ -17,28 +17,17 @@ system_prompt = """
 query_wrapper_prompt = SimpleInputPrompt(">>QUESTION<<{query_str}\n>>ANSWER<<")
 
 # Select Model
-#service_context = ServiceContext.from_defaults()
 service_context = get_falcon_tgis_context(0.7, 1.03)
-
-#set_global_service_context(service_context)
 
 # Load data
 vector_store = RedisVectorStore(
     index_name="pg_essays",
     index_prefix="llama",
     redis_url="redis://localhost:6379",
-    overwrite=True,
+    overwrite=False,
 )
 
-#storage_context = StorageContext.from_defaults(persist_dir="vector-db")
 storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-#index = load_index_from_storage(
-#    service_context=service_context,
-#    index_id="llama",
-#    storage_context=storage_context 
-#)
-
 index = VectorStoreIndex.from_vector_store(vector_store, service_context=service_context)
 
 query_engine = index.as_query_engine(
@@ -66,18 +55,10 @@ with gr.Blocks() as demo:
     repetition_penalty = gr.Slider(minimum=0.1, maximum=2, value=1.03, label="Repetition Penalty")
 
     def user(user_message, history, system_prompt, temperature, repetition_penalty):
-        #service_context = ServiceContext.from_defaults()
-        #service_context = get_falcon_tgis_context(temperature, repetition_penalty)
-
-        #set_global_service_context(service_context)
-        #not sure if we have to re-init query engine
-        #index = load_index_from_storage(
-        #    service_context=service_context,
-        #    storage_context=storage_context 
-        #)
         
         if system_prompt == "":
             system_prompt = None
+
         query_engine = index.as_query_engine(
           system_prompt=system_prompt,
           query_wrapper_prompt=query_wrapper_prompt,

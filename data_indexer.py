@@ -4,18 +4,17 @@ from llama_index.vector_stores import RedisVectorStore
 from llama_index.storage.storage_context import StorageContext
 from model_context import get_falcon_tgis_context
 
-import os, time
 import logging
 import sys
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 vector_store = RedisVectorStore(
     index_name="pg_essays",
     index_prefix="llama",
     redis_url="redis://localhost:6379",
-    overwrite=True,
+    overwrite=False,
 )
 
 # Select Model

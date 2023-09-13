@@ -1,8 +1,10 @@
 from llama_index.prompts.prompts import SimpleInputPrompt
+from llama_index.prompts import Prompt
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from llama_index.llms import LangChainLLM, HuggingFaceLLM
 from llama_index import LangchainEmbedding, ServiceContext
 from langchain import HuggingFaceTextGenInference
+from llama_index.node_parser import SentenceWindowNodeParser
 import os
 
 def get_stablelm_context():
@@ -64,14 +66,45 @@ def get_falcon_context():
     return service_context
 
 def get_falcon_tgis_context(temperature, repetition_penalty):
-    #system_prompt = """# Falcon-7B Instruct
-    #- You are a helpful AI assistant and provide the answer for the question based on the given context.
-    #- You answer the question as truthfully as possible using the provided text, and if the answer is not contained within the text below, you say "I don't know".
-    #""" 
+    system_prompt = """
+    - You are a helpful AI assistant and provide the answer for the question based on the given context.
+    - You answer the question as truthfully as possible using the provided text, and if the answer is not contained within the text below, you say "I don't know".
+    """ 
 
-    #print("Creating query_wrapper_prompt")
-    # This will wrap the default prompts that are internal to llama-index
+    ## This will wrap the default prompts that are internal to llama-index
     #query_wrapper_prompt = SimpleInputPrompt(">>QUESTION<<{query_str}\n>>ANSWER<<")
+    query_wrapper_prompt = Prompt("[INST] {query_str} [/INST]")
+
+    print("Changing default model")
+    # Change default model
+    #embed_model = LangchainEmbedding(HuggingFaceEmbeddings())
+    embed_model='local:BAAI/bge-base-en'
+
+    print(f"Getting server environment variables")
+    server_url = os.getenv('TGIS_SERVER_URL', 'http://localhost') # Get server url from env else default
+    server_port = os.getenv('TGIS_SERVER_PORT', '8049') # Get server port from env else default
+    print(f"Initializing TGIS predictor with server_url: {server_url}, server_port: {server_port}")
+    inference_server_url=f"{server_url}:{server_port}/"
+    print(f"Inference Service URL: {inference_server_url}")
+
+    tgis_predictor = LangChainLLM(
+        llm=HuggingFaceTextGenInference(
+            inference_server_url=inference_server_url,
+            max_new_tokens=256,
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+            server_kwargs={},
+        ),
+    )
+
+    print("Creating service_context")
+    service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
+                                                   query_wrapper_prompt=query_wrapper_prompt,
+                                                   system_prompt=system_prompt,
+                                                   embed_model=embed_model)
+    return service_context
+
+def get_falcon_tgis_context_simple(temperature, repetition_penalty):
 
     print("Changing default model")
     # Change default model
@@ -94,6 +127,60 @@ def get_falcon_tgis_context(temperature, repetition_penalty):
         ),
     )
 
+    from llama_index import PromptHelper
+    prompt_helper = PromptHelper(context_window=2048, num_output=256)
+
     print("Creating service_context")
-    service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, embed_model=embed_model)
+    service_context = ServiceContext.from_defaults(chunk_size=512,
+                                                   llm=tgis_predictor, 
+                                                   context_window=2048,
+                                                   prompt_helper=prompt_helper,
+                                                   embed_model=embed_model)
+    return service_context
+
+
+def get_falcon_tgis_context_sentence_window(temperature, repetition_penalty):
+    #system_prompt = """
+    #- You are a helpful AI assistant and provide the answer for the question based on the given context.
+    #- You answer the question as truthfully as possible using the provided context, and if the answer is not contained within the text below, you say "I don't know".
+    #""" 
+
+    ## This will wrap the default prompts that are internal to llama-index
+    #query_wrapper_prompt = SimpleInputPrompt("### Question\n{query_str}\n### Answer\n")
+
+    # create the sentence window node parser w/ default settings
+    node_parser = SentenceWindowNodeParser.from_defaults(
+        window_size=3,
+        window_metadata_key="window",
+        original_text_metadata_key="original_text",
+    )
+
+    print("Changing default model")
+    # Change default model
+    embed_model = LangchainEmbedding(HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2"))
+
+    print(f"Getting server environment variables")
+    server_url = os.getenv('TGIS_SERVER_URL', 'http://localhost') # Get server url from env else default
+    server_port = os.getenv('TGIS_SERVER_PORT', '8049') # Get server port from env else default
+    print(f"Initializing TGIS predictor with server_url: {server_url}, server_port: {server_port}")
+    inference_server_url=f"{server_url}:{server_port}/"
+    print(f"Inference Service URL: {inference_server_url}")
+
+    tgis_predictor = LangChainLLM(
+        llm=HuggingFaceTextGenInference(
+            inference_server_url=inference_server_url,
+            max_new_tokens=256,
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+            server_kwargs={},
+        ),
+    )
+
+    print("Creating service_context")
+    #service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
+    #                                               query_wrapper_prompt=query_wrapper_prompt,
+    #                                               system_prompt=system_prompt,
+    #                                               embed_model=embed_model, node_parser=node_parser)
+    service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
+                                                   embed_model=embed_model, node_parser=node_parser)
     return service_context

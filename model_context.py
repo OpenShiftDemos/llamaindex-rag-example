@@ -138,6 +138,45 @@ def get_falcon_tgis_context_simple(temperature, repetition_penalty):
                                                    embed_model=embed_model)
     return service_context
 
+def get_falcon_tgis_context_llm_selector(temperature, repetition_penalty):
+    system_prompt = """
+    - You are a code generation engine.
+    - You only respond with JSON objects.
+    - You are classifying questions based on provided context.
+    """ 
+
+    ## This will wrap the default prompts that are internal to llama-index
+    #query_wrapper_prompt = SimpleInputPrompt(">>QUESTION<<{query_str}\n>>ANSWER<<")
+    query_wrapper_prompt = Prompt("{query_str}")
+
+    # Change default model
+    #embed_model = LangchainEmbedding(HuggingFaceEmbeddings())
+    embed_model='local:BAAI/bge-base-en'
+
+    print(f"Getting server environment variables")
+    server_url = os.getenv('TGIS_SERVER_URL', 'http://localhost') # Get server url from env else default
+    server_port = os.getenv('TGIS_SERVER_PORT', '8049') # Get server port from env else default
+    print(f"Initializing TGIS predictor with server_url: {server_url}, server_port: {server_port}")
+    inference_server_url=f"{server_url}:{server_port}/"
+    print(f"Inference Service URL: {inference_server_url}")
+
+    tgis_predictor = LangChainLLM(
+        llm=HuggingFaceTextGenInference(
+            inference_server_url=inference_server_url,
+            max_new_tokens=256,
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+            server_kwargs={},
+        ),
+    )
+
+    print("Creating service_context")
+    service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
+                                                   query_wrapper_prompt=Prompt("[INST] {query_str} [/INST] "),
+                                                   #query_wrapper_prompt=query_wrapper_prompt,
+                                                   #system_prompt=system_prompt,
+                                                   embed_model=embed_model)
+    return service_context
 
 def get_falcon_tgis_context_sentence_window(temperature, repetition_penalty):
     #system_prompt = """

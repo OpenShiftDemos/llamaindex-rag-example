@@ -1,4 +1,6 @@
 # Imports
+import llama_index
+import traceback
 from llama_index import set_global_service_context, StorageContext, load_index_from_storage
 from llama_index.vector_stores import RedisVectorStore
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, Document
@@ -10,8 +12,9 @@ import os, time
 import logging
 import sys
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+llama_index.set_global_handler("simple")
+#logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+#logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 # Select Model
 #service_context = get_stablelm_context()

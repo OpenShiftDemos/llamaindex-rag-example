@@ -1,23 +1,28 @@
 # Imports
+import llama_index
+import traceback
 from llama_index.vector_stores import RedisVectorStore
 from llama_index import VectorStoreIndex
 from model_context import get_falcon_tgis_context, get_falcon_tgis_context_llm_selector
 from llama_index.tools.query_engine import QueryEngineTool
 from llama_index.query_engine.router_query_engine import RouterQueryEngine
-from llama_index.selectors.llm_selectors import LLMSingleSelector, LLMMultiSelector
+from llama_index.selectors.llm_selectors import LLMSingleSelector
+from llama_index.callbacks import CallbackManager, TokenCountingHandler
 
 import os, time
 import logging
 import sys
 
+llama_index.set_global_handler("simple")
+
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
+token_counter = TokenCountingHandler()
+callback_manager = CallbackManager([token_counter])
+
 # Select Model
-#service_context = get_stablelm_context()
-#service_context = get_falcon_tgis_context_sentence_window(0.7, 1.03)
 service_context = get_falcon_tgis_context(0.7, 1.03)
-#service_context = ServiceContext.from_defaults(embed_model="local")
 
 llm_selector_context = get_falcon_tgis_context_llm_selector(0.7, 1.03)
 
@@ -70,7 +75,7 @@ web_console_query_tool = QueryEngineTool.from_defaults(
 print("Setting up router")
 query_engine = RouterQueryEngine(
     service_context=service_context,
-    selector=LLMSingleSelector.from_defaults(service_context=service_context),
+    selector=LLMSingleSelector.from_defaults(service_context=llm_selector_context),
     query_engine_tools=[
         os_query_tool,
         web_console_query_tool,
@@ -80,13 +85,28 @@ query_engine = RouterQueryEngine(
 #query = input("What's your query? ")
 query = "I am an OpenShift administrator and I would like to know how to install the web terminal."
 
-response = query_engine.query(query)
-referenced_documents = "\n\nReferenced documents:\n"
-for source_node in response.source_nodes:
-    #print(source_node.node.metadata['file_name'])
-    referenced_documents += source_node.node.metadata['file_name'] + '\n'
+try:
+    response = query_engine.query(query)
+    referenced_documents = "\n\nReferenced documents:\n"
+    for source_node in response.source_nodes:
+        #print(source_node.node.metadata['file_name'])
+        referenced_documents += source_node.node.metadata['file_name'] + '\n'
 
-print()
-print(query)
-print(str(response))
-print(referenced_documents)
+    #print()
+    #print(query)
+    #print()
+    #print("all prompts (including intermediary")
+    #print()
+    #for x in range(len(token_counter.llm_token_counts)):
+    #    print("prompt ", x)
+    #    print("prompt: ", token_counter.llm_token_counts[x].prompt)
+    print("response")
+    print(str(response))
+    print(referenced_documents)
+except Exception:
+    traceback.print_exc()
+    #for x in range(len(token_counter.llm_token_counts)):
+    #    print("prompt ", x)
+    #    print("prompt: \n", token_counter.llm_token_counts[x].prompt)
+    #    print()
+    #    print("completion: \n", token_counter.llm_token_counts[x].completion)

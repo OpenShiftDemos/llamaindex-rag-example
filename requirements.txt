@@ -7,3 +7,4 @@ text_generation
 llama-index
 llama-cpp-python
 redis
+ibm-watson-machine-learning

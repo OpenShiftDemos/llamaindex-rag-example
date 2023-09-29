@@ -5,7 +5,7 @@ from llama_index import set_global_service_context, StorageContext, load_index_f
 from llama_index.vector_stores import RedisVectorStore
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, Document
 from llama_index import ServiceContext
-from model_context import get_tgis_context_w_extras
+from model_context import get_tgis_context_w_extras, get_watsonx_predictor
 from llama_index.prompts import Prompt
 
 import os, time
@@ -28,7 +28,8 @@ system_prompt = """
 """ 
 query_wrapper_prompt = Prompt("[INST] {query_str} [/INST]")
 
-service_context = get_tgis_context_w_extras(0.7, 1.03, system_prompt, query_wrapper_prompt)
+#service_context = get_tgis_context_w_extras(0.7, 1.03, system_prompt, query_wrapper_prompt)
+service_context = get_watsonx_predictor(model="ibm/granite-13b-instruct-v1")
 
 # Load data
 redis_hostname = os.getenv('REDIS_SERVER_HOSTNAME', 'localhost') # Get server url from env else default
@@ -47,7 +48,7 @@ index = VectorStoreIndex.from_vector_store(vector_store, service_context=service
 #query = "How do I get the SSH key for a cluster from Hive?"
 #query = "How do I install the web terminal?"
 query = "what are the steps for configuring cluster autoscaling?"
-response = index.as_query_engine(verbose=True, streaming=True).query(query)
+response = index.as_query_engine(verbose=True, streaming=False).query(query)
 referenced_documents = "\n\nReferenced documents:\n"
 for source_node in response.source_nodes:
     #print(source_node.node.metadata['file_name'])

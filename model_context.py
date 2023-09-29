@@ -5,6 +5,8 @@ from llama_index.llms import LangChainLLM, HuggingFaceLLM
 from llama_index import LangchainEmbedding, ServiceContext
 from langchain.llms import HuggingFaceTextGenInference
 from llama_index.node_parser import SentenceWindowNodeParser
+from watsonx_langchain_wrapper import WatsonxLLM
+from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
 
 import os
 
@@ -66,6 +68,28 @@ def get_falcon_context():
     service_context = ServiceContext.from_defaults(chunk_size=1024, llm=hf_predictor, embed_model=embed_model)
     return service_context
 
+def get_watsonx_predictor(model):
+  project_id = os.getenv("WATSON_PROJECT_ID", None)
+  creds = {
+      "url": "https://us-south.ml.cloud.ibm.com",
+      "apikey": os.getenv("WATSON_API_KEY", None)
+  }
+
+  params = {
+      GenParams.DECODING_METHOD: "greedy",
+      GenParams.MIN_NEW_TOKENS: 1,
+      GenParams.MAX_NEW_TOKENS: 256
+  }
+
+  predictor = LangChainLLM(WatsonxLLM(model=model, credentials=creds, params=params, project_id=project_id))
+  embed_model='local:BAAI/bge-base-en'
+  service_context = ServiceContext.from_defaults(chunk_size=1024, llm=predictor, 
+                                                 #query_wrapper_prompt=query_wrapper_prompt,
+                                                 #system_prompt=system_prompt,
+                                                 embed_model=embed_model)
+
+  return service_context
+
 def get_tgis_predictor(inference_server_url, temperature, repetition_penalty):
   return LangChainLLM(
         llm=HuggingFaceTextGenInference(
@@ -78,18 +102,18 @@ def get_tgis_predictor(inference_server_url, temperature, repetition_penalty):
     )
 
 def get_tgis_context_w_extras(temperature, repetition_penalty, system_prompt, query_wrapper_prompt):
-    embed_model='local:BAAI/bge-base-en'
-    server_url = os.getenv('TGIS_SERVER_URL', 'http://localhost') # Get server url from env else default
-    server_port = os.getenv('TGIS_SERVER_PORT', '8049') # Get server port from env else default
-    inference_server_url=f"{server_url}:{server_port}/"
+  embed_model='local:BAAI/bge-base-en'
+  server_url = os.getenv('TGIS_SERVER_URL', 'http://localhost') # Get server url from env else default
+  server_port = os.getenv('TGIS_SERVER_PORT', '8049') # Get server port from env else default
+  inference_server_url=f"{server_url}:{server_port}/"
 
-    tgis_predictor = get_tgis_predictor(inference_server_url, temperature, repetition_penalty)
+  tgis_predictor = get_tgis_predictor(inference_server_url, temperature, repetition_penalty)
 
-    service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
-                                                   query_wrapper_prompt=query_wrapper_prompt,
-                                                   system_prompt=system_prompt,
-                                                   embed_model=embed_model)
-    return service_context
+  service_context = ServiceContext.from_defaults(chunk_size=1024, llm=tgis_predictor, 
+                                                 query_wrapper_prompt=query_wrapper_prompt,
+                                                 system_prompt=system_prompt,
+                                                 embed_model=embed_model)
+  return service_context
 
 def get_falcon_tgis_context(temperature, repetition_penalty):
     system_prompt = """
